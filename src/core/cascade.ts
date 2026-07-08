@@ -53,8 +53,9 @@ export async function runCascade(
     const tier = activeTiers[i];
     const config = TIER_CONFIGS[tier];
 
-    // Score confidence at this tier (which calls Gemini k=5 times in parallel)
-    const result = await scorer.score(ai, config.model, prompt, 5);
+    // Score confidence at this tier (which calls Gemini k=3 times in parallel)
+    // k=3 is a good balance between accuracy and API quota usage on the free tier
+    const result = await scorer.score(ai, config.model, prompt, 3);
 
     // Accumulated cost of the current tier's k calls
     const tierCost = calculateCost(tier, result.inputTokens, result.outputTokens);

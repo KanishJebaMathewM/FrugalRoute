@@ -2,7 +2,7 @@ services:
   - type: web
     name: frugalroute-backend
     runtime: node
-    repo: https://github.com/your-username/frugalroute # placeholder or user repo
+    repo: https://github.com/KanishJebaMathewM/FrugalRoute
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start

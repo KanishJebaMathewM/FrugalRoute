@@ -77,7 +77,7 @@ export async function routeRoutes(fastify: FastifyInstance) {
           tier_used: result.tierUsed,
           escalated: result.escalated,
           confidence: result.confidence,
-          confidence_method: result.confidenceMethod,
+        confidence_method: result.confidenceMethod,
           cost_usd: parseFloat(savedRequest.costUsd),
           latency_ms: result.latencyMs,
           baseline_cost_usd_if_frontier: parseFloat(savedRequest.baselineCostUsdIfFrontier),
