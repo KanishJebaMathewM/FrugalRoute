@@ -10,9 +10,9 @@ FrugalRoute is a confidence-gated LLM cascade router with a learned, per-task-ty
 - **LLM API**: OpenRouter (OpenAI-compatible, single API key for all tiers)
 
 ## Model Tier Mappings
-- **fast**: `meta-llama/llama-3.1-8b-instruct:free` (free tier, ~$0.06/1M tokens)
-- **mid**: `meta-llama/llama-3.3-70b-instruct:free` (free tier, ~$0.30/1M tokens)
-- **frontier**: `deepseek/deepseek-r1:free` (free tier, reasoning model)
+- **fast**: `google/gemma-4-31b-it:free` (free tier, Google Gemma 4 31B)
+- **mid**: `openai/gpt-oss-20b:free` (free tier, OpenAI open-source 20B)
+- **frontier**: `nvidia/nemotron-3-ultra-550b-a55b:free` (free tier, NVIDIA 550B MoE — most capable free model on OpenRouter)
 
 ---
 

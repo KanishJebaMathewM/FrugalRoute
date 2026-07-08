@@ -7,30 +7,28 @@ export interface TierConfig {
 }
 
 /**
- * Model tiers mapped to OpenRouter model IDs.
- * All three are on the free tier — no billing required.
+ * Model tiers mapped to OpenRouter model IDs (all free tier).
  *
- * fast:     llama-3.1-8b  — small, very low latency
- * mid:      llama-3.3-70b — strong general model
- * frontier: deepseek-r1   — reasoning model for hard tasks
+ * fast:     google/gemma-4-31b-it:free     — fast, Google's Gemma 4 31B
+ * mid:      openai/gpt-oss-20b:free        — OpenAI open-source 20B
+ * frontier: nvidia/nemotron-3-ultra-550b-a55b:free — NVIDIA 550B MoE, most capable free model
  *
- * Pricing shown is the paid-tier rate; free usage is $0 but
- * we track it for the savings baseline calculation.
+ * Pricing shown is illustrative for savings baseline calculation (actual cost is $0 on free tier).
  */
 export const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
   fast: {
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
-    inputCostPer1M: 0.06,
-    outputCostPer1M: 0.06,
+    model: 'google/gemma-4-31b-it:free',
+    inputCostPer1M: 0.10,
+    outputCostPer1M: 0.10,
   },
   mid: {
-    model: 'meta-llama/llama-3.3-70b-instruct:free',
-    inputCostPer1M: 0.12,
-    outputCostPer1M: 0.30,
+    model: 'openai/gpt-oss-20b:free',
+    inputCostPer1M: 0.30,
+    outputCostPer1M: 0.60,
   },
   frontier: {
-    model: 'deepseek/deepseek-r1:free',
-    inputCostPer1M: 0.55,
-    outputCostPer1M: 2.19,
+    model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    inputCostPer1M: 0.90,
+    outputCostPer1M: 3.50,
   },
 };
