@@ -1,15 +1,14 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
-// Extend FastifyInstance type to hold the GoogleGenAI instance
+// Extend FastifyInstance to hold the OpenAI-compatible client
 declare module 'fastify' {
   interface FastifyInstance {
-    ai: GoogleGenAI;
+    ai: OpenAI;
   }
 }
 
@@ -26,33 +25,35 @@ const fastify = Fastify({
   logger: {
     transport: {
       target: 'pino-pretty',
-      options: {
-        colorize: true,
-      },
+      options: { colorize: true },
     },
   },
 });
 
-// Setup API Client for Gemini
-const geminiApiKey = process.env.GEMINI_API_KEY;
-if (!geminiApiKey) {
-  fastify.log.error('Missing GEMINI_API_KEY environment variable. Server cannot start.');
+// Setup OpenRouter client (OpenAI-compatible)
+const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+if (!openrouterApiKey) {
+  fastify.log.error('Missing OPENROUTER_API_KEY environment variable. Server cannot start.');
   process.exit(1);
 }
-const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+const ai = new OpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: openrouterApiKey,
+  defaultHeaders: {
+    'HTTP-Referer': 'https://frugalroute-backend.onrender.com',
+    'X-Title': 'FrugalRoute',
+  },
+});
 fastify.decorate('ai', ai);
 
-// Register CORS middleware
-fastify.register(cors, {
-  origin: '*',
-});
+fastify.register(cors, { origin: '*' });
 
-// Health check endpoint
-fastify.get('/health', async () => {
-  return { status: 'ok', timestamp: new Date().toISOString() };
-});
+fastify.get('/health', async () => ({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+}));
 
-// Register routes
 fastify.register(registerRoutes);
 fastify.register(routeRoutes);
 fastify.register(feedbackRoutes);
@@ -65,9 +66,7 @@ const port = Number(process.env.PORT) || 3000;
 
 const start = async () => {
   try {
-    // Run migrations before listening
     await runMigrations();
-
     await fastify.listen({ port, host: '0.0.0.0' });
     fastify.log.info(`Server is listening on port ${port}`);
   } catch (err) {

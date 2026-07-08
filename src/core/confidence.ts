@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export interface ConfidenceResult {
   confidence: number;
@@ -10,7 +10,7 @@ export interface ConfidenceResult {
 
 export interface ConfidenceScorer {
   score(
-    ai: GoogleGenAI,
+    client: OpenAI,
     model: string,
     prompt: string,
     k?: number
@@ -30,61 +30,55 @@ export function getTokens(text: string): Set<string> {
  */
 export function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
   if (setA.size === 0 && setB.size === 0) return 1.0;
-  
+
   let intersectionSize = 0;
   for (const item of setA) {
-    if (setB.has(item)) {
-      intersectionSize++;
-    }
+    if (setB.has(item)) intersectionSize++;
   }
-  
+
   const unionSize = setA.size + setB.size - intersectionSize;
   if (unionSize === 0) return 0.0;
   return intersectionSize / unionSize;
 }
 
 /**
- * Self-consistency confidence scorer that draws k low-temperature completions,
- * computes the average pairwise Jaccard similarity, and returns the result.
+ * Self-consistency confidence scorer using the OpenAI-compatible API (OpenRouter).
+ * Draws k low-temperature completions, computes average pairwise Jaccard similarity.
  */
 export class SelfConsistencyScorer implements ConfidenceScorer {
   async score(
-    ai: GoogleGenAI,
+    client: OpenAI,
     model: string,
     prompt: string,
-    k: number = 5
+    k: number = 3
   ): Promise<ConfidenceResult> {
-    // Generate k completions in parallel at temperature 0.3
     const promises = Array.from({ length: k }).map(async () => {
       try {
-        const response = await ai.models.generateContent({
-          model: model,
-          contents: prompt,
-          config: {
-            temperature: 0.3,
-          },
+        const response = await client.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          max_tokens: 1024,
         });
-        
-        const text = response.text || '';
-        const inputTokens = response.usageMetadata?.promptTokenCount || 0;
-        const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
-        
+
+        const text = response.choices?.[0]?.message?.content || '';
+        const inputTokens = response.usage?.prompt_tokens || 0;
+        const outputTokens = response.usage?.completion_tokens || 0;
+
         return { text, inputTokens, outputTokens };
       } catch (error: any) {
-        console.error(`Error calling Gemini model ${model}:`, error?.message || error);
-        // Return fallback/empty result so that the rest of the batch can proceed
+        console.error(`Error calling model ${model}:`, error?.message || error);
         return { text: '', inputTokens: 0, outputTokens: 0 };
       }
     });
 
     const results = await Promise.all(promises);
-    
+
     const completions = results.map(r => r.text).filter(t => t !== '');
     const totalInputTokens = results.reduce((acc, r) => acc + r.inputTokens, 0);
     const totalOutputTokens = results.reduce((acc, r) => acc + r.outputTokens, 0);
 
     if (completions.length < 2) {
-      // If we failed to get at least 2 completions, we can't do pairwise comparison
       return {
         confidence: completions.length === 1 ? 1.0 : 0.0,
         confidenceMethod: `self_consistency_k${k}`,
@@ -94,7 +88,7 @@ export class SelfConsistencyScorer implements ConfidenceScorer {
       };
     }
 
-    // Compute pairwise similarity for all C(n, 2) pairs
+    // Compute pairwise Jaccard similarity for all C(n,2) pairs
     const tokenSets = completions.map(getTokens);
     let totalSimilarity = 0;
     let pairsCount = 0;
@@ -111,7 +105,7 @@ export class SelfConsistencyScorer implements ConfidenceScorer {
     return {
       confidence,
       confidenceMethod: `self_consistency_k${k}`,
-      completions, // We return the list of completions so the cascade can use completions[0]
+      completions,
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
     };

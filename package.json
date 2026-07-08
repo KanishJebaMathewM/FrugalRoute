@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
-    "@google/genai": "^0.10.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.30.10",
     "fastify": "^4.26.2",
+    "openai": "^4.104.0",
     "pg": "^8.11.5",
     "pino-pretty": "^11.0.0"
   },

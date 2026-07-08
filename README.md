@@ -7,12 +7,12 @@ FrugalRoute is a confidence-gated LLM cascade router with a learned, per-task-ty
 - **Language**: TypeScript (Strict Mode)
 - **Framework**: Fastify
 - **Database**: PostgreSQL (via Drizzle ORM)
-- **LLM API**: Google Gen AI SDK (`@google/genai`)
+- **LLM API**: OpenRouter (OpenAI-compatible, single API key for all tiers)
 
 ## Model Tier Mappings
-- **fast**: `gemini-2.5-flash` ($0.075 / 1M input, $0.30 / 1M output tokens)
-- **mid**: `gemini-2.5-pro` ($1.25 / 1M input, $10.00 / 1M output tokens)
-- **frontier**: `gemini-2.5-pro` ($1.25 / 1M input, $10.00 / 1M output tokens — reached only when bandit threshold demands it)
+- **fast**: `meta-llama/llama-3.1-8b-instruct:free` (free tier, ~$0.06/1M tokens)
+- **mid**: `meta-llama/llama-3.3-70b-instruct:free` (free tier, ~$0.30/1M tokens)
+- **frontier**: `deepseek/deepseek-r1:free` (free tier, reasoning model)
 
 ---
 
@@ -37,7 +37,7 @@ Ensure your `.env` contains:
 ```env
 PORT=3000
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/frugalroute
-GEMINI_API_KEY=your_gemini_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 ### 4. Database Setup
@@ -90,6 +90,5 @@ To deploy this backend to Render:
    - A **Managed PostgreSQL** database.
    - A **Web Service** running Node.js.
 3. Configure the following environment variables in the Web Service dashboard on Render:
-   - `GEMINI_API_KEY`: Your Google Gemini API Key.
-   - The database URL `DATABASE_URL` is automatically wired from the PostgreSQL resource.
+   - `OPENROUTER_API_KEY`: Your OpenRouter API Key (free at openrouter.ai).
 4. Render will run `npm install && npm run build` to build, and `npm start` to run. The server runs migrations programmatically on startup.

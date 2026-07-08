@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import { ModelTier, QualityBar, EscalationTraceItem } from '../types.js';
 import { SelfConsistencyScorer } from './confidence.js';
 import { calculateCost } from './cost.js';
@@ -23,7 +23,7 @@ const scorer = new SelfConsistencyScorer();
  * Executes the cascade routing orchestration.
  */
 export async function runCascade(
-  ai: GoogleGenAI,
+  client: OpenAI,
   taskType: string,
   prompt: string,
   qualityBar: QualityBar,
@@ -31,7 +31,6 @@ export async function runCascade(
 ): Promise<CascadeResult> {
   const startTime = Date.now();
 
-  // Get current threshold perturbation from bandit
   const { threshold } = await getThreshold(taskType, qualityBar);
 
   const tiers: ModelTier[] = ['fast', 'mid', 'frontier'];
@@ -44,8 +43,7 @@ export async function runCascade(
   let finalConfidence = 0.0;
   let finalMethod = '';
   let finalTier: ModelTier = 'fast';
-  
-  // Track prompt token count from the first successful call to calculate baseline
+
   let promptTokenCount = 0;
   let successfulCompletionOutputTokens = 0;
 
@@ -53,17 +51,12 @@ export async function runCascade(
     const tier = activeTiers[i];
     const config = TIER_CONFIGS[tier];
 
-    // Score confidence at this tier (which calls Gemini k=3 times in parallel)
-    // k=3 is a good balance between accuracy and API quota usage on the free tier
-    const result = await scorer.score(ai, config.model, prompt, 3);
+    const result = await scorer.score(client, config.model, prompt, 3);
 
-    // Accumulated cost of the current tier's k calls
     const tierCost = calculateCost(tier, result.inputTokens, result.outputTokens);
     totalCostUsd += tierCost;
 
-    // Capture the first successful prompt token count to estimate baseline input tokens
     if (promptTokenCount === 0 && result.inputTokens > 0) {
-      // result.inputTokens is the sum of k calls, so divide by k (e.g. 5) to get 1-shot prompt tokens
       promptTokenCount = Math.round(result.inputTokens / Math.max(result.completions.length, 1));
     }
 
@@ -73,20 +66,12 @@ export async function runCascade(
     finalMethod = result.confidenceMethod;
     finalTier = tier;
 
-    // Add to escalation trace
-    escalationTrace.push({
-      tier,
-      confidence: result.confidence,
-    });
+    escalationTrace.push({ tier, confidence: result.confidence });
 
-    // Check if this is the successful completion
     if (result.completions.length > 0) {
-      // Estimate the output token count of 1-shot completion
-      // result.outputTokens is total output tokens of all successful completions
       successfulCompletionOutputTokens = Math.round(result.outputTokens / result.completions.length);
     }
 
-    // Stop escalating if confidence meets threshold, or we've reached the max tier
     const isMaxTier = i === activeTiers.length - 1;
     if (result.confidence >= threshold || isMaxTier) {
       break;
@@ -96,10 +81,8 @@ export async function runCascade(
   const latencyMs = Date.now() - startTime;
   const escalated = finalTier !== 'fast';
 
-  // Calculate always-frontier 1-shot baseline cost
-  // If we don't have prompt token count (i.e. all calls failed), estimate characters / 4
   const baselineInput = promptTokenCount > 0 ? promptTokenCount : Math.round(prompt.length / 4);
-  const baselineOutput = successfulCompletionOutputTokens > 0 ? successfulCompletionOutputTokens : 50; // fallback output size
+  const baselineOutput = successfulCompletionOutputTokens > 0 ? successfulCompletionOutputTokens : 50;
   const baselineCostUsdIfFrontier = calculateCost('frontier', baselineInput, baselineOutput);
 
   return {

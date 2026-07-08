@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import OpenAI from 'openai';
 import { authenticateAgent } from '../middleware/auth.js';
 import { runCascade } from '../core/cascade.js';
 import { db } from '../db/client.js';

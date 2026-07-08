@@ -9,7 +9,7 @@ services:
     envVars:
       - key: PORT
         value: 10000
-      - key: GEMINI_API_KEY
+      - key: OPENROUTER_API_KEY
         sync: false
       - key: DATABASE_URL
         fromDatabase:
