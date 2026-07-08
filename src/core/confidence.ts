@@ -70,8 +70,8 @@ export class SelfConsistencyScorer implements ConfidenceScorer {
         const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
         
         return { text, inputTokens, outputTokens };
-      } catch (error) {
-        console.error(`Error calling Gemini model ${model}:`, error);
+      } catch (error: any) {
+        console.error(`Error calling Gemini model ${model}:`, error?.message || error);
         // Return fallback/empty result so that the rest of the batch can proceed
         return { text: '', inputTokens: 0, outputTokens: 0 };
       }

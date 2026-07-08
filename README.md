@@ -11,8 +11,8 @@ FrugalRoute is a confidence-gated LLM cascade router with a learned, per-task-ty
 
 ## Model Tier Mappings
 - **fast**: `gemini-2.5-flash` ($0.075 / 1M input, $0.30 / 1M output tokens)
-- **mid**: `gemini-1.5-pro` ($1.25 / 1M input, $5.00 / 1M output tokens)
-- **frontier**: `gemini-2.5-pro` ($1.25 / 1M input, $5.00 / 1M output tokens)
+- **mid**: `gemini-2.5-pro` ($1.25 / 1M input, $10.00 / 1M output tokens)
+- **frontier**: `gemini-2.5-pro` ($1.25 / 1M input, $10.00 / 1M output tokens — reached only when bandit threshold demands it)
 
 ---
 

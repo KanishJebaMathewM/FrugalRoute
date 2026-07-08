@@ -7,8 +7,12 @@ export interface TierConfig {
 }
 
 /**
- * Pricing table for the mapped Gemini models (as of early 2026).
- * Refresh periodically based on Google Cloud Vertex AI / AI Studio pricing.
+ * Pricing table for the mapped Gemini models (as of July 2026).
+ * gemini-2.5-flash: fast, cheapest, free tier available
+ * gemini-2.5-pro:   mid — balanced cost/quality
+ * gemini-2.5-pro:   frontier — same model, stricter quality bar threshold forces it only for hard tasks
+ * 
+ * Note: gemini-1.5-pro is retired. gemini-2.5-flash and gemini-2.5-pro are stable until Oct 16, 2026.
  */
 export const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
   fast: {
@@ -17,13 +21,13 @@ export const TIER_CONFIGS: Record<ModelTier, TierConfig> = {
     outputCostPer1M: 0.30,
   },
   mid: {
-    model: 'gemini-1.5-pro',
+    model: 'gemini-2.5-pro',
     inputCostPer1M: 1.25,
-    outputCostPer1M: 5.00,
+    outputCostPer1M: 10.00,
   },
   frontier: {
     model: 'gemini-2.5-pro',
     inputCostPer1M: 1.25,
-    outputCostPer1M: 5.00,
+    outputCostPer1M: 10.00,
   },
 };
