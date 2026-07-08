@@ -1,94 +1,136 @@
-# FrugalRoute Backend
+# FrugalRoute
 
-FrugalRoute is a confidence-gated LLM cascade router with a learned, per-task-type routing policy using the **Gemini API**. It decided which model tier (`fast` | `mid` | `frontier`) is actually needed for a given query to save costs while maintaining a target quality bar.
+**Confidence-gated LLM cascade router with a learned, per-task-type routing policy.**
 
-## Tech Stack
-- **Runtime**: Node.js 20+
-- **Language**: TypeScript (Strict Mode)
-- **Framework**: Fastify
-- **Database**: PostgreSQL (via Drizzle ORM)
-- **LLM API**: OpenRouter (OpenAI-compatible, single API key for all tiers)
+Agents calling LLMs almost always hardcode a single model tier for every request — a one-line classification, a JSON reformat, and a complex multi-step reasoning task all get billed at the same frontier-model rate. FrugalRoute fixes this. Agents call `/route` instead of calling a model directly. FrugalRoute starts at the cheapest tier, measures confidence, and only escalates when the response isn't good enough — saving up to **95% in inference cost** while hitting the same quality bar.
 
-## Model Tier Mappings
-- **fast**: `google/gemma-4-31b-it:free` (free tier, Google Gemma 4 31B)
-- **mid**: `openai/gpt-oss-20b:free` (free tier, OpenAI open-source 20B)
-- **frontier**: `nvidia/nemotron-3-ultra-550b-a55b:free` (free tier, NVIDIA 550B MoE — most capable free model on OpenRouter)
+Live at: **https://frugalroute-backend.onrender.com**
+SkillMD: **https://frugalroute-backend.onrender.com/skill.md**
 
 ---
 
-## Local Setup
+## How it works
 
-### 1. Prerequisites
-- Node.js 20+ and npm installed
-- Running PostgreSQL database instance
+```
+Agent sends prompt
+      │
+      ▼
+  [ fast tier ]  ──confidence >= threshold?──► return response
+      │ no
+      ▼
+  [ mid tier ]   ──confidence >= threshold?──► return response
+      │ no
+      ▼
+  [ frontier ]   ──────────────────────────► return response
+```
 
-### 2. Install Dependencies
+**Confidence** is measured via self-consistency: k=3 completions are drawn at low temperature, and average pairwise Jaccard similarity across them is the confidence score. High agreement = the model is sure. Low agreement = escalate.
+
+**The threshold isn't fixed.** A Thompson Sampling contextual bandit (Beta-Bernoulli reward model) maintains a per-`task_type` confidence threshold. Every `/feedback` call shifts the posterior — the router learns whether it's been too aggressive or too conservative for that task type and self-corrects.
+
+**State is shared** — your feedback trains the policy for a `task_type` globally. Other agents using the same label benefit from your signal.
+
+---
+
+## Model Tiers (via OpenRouter)
+
+| Tier | Model | Use case |
+|---|---|---|
+| **fast** | `google/gemma-4-31b-it:free` | Classification, extraction, formatting |
+| **mid** | `openai/gpt-oss-20b:free` | Moderate reasoning, longer context |
+| **frontier** | `nvidia/nemotron-3-ultra-550b-a55b:free` | Complex multi-step reasoning, high-stakes correctness |
+
+All three are on OpenRouter's free tier — no billing required.
+
+---
+
+## API
+
+Base URL: `https://frugalroute-backend.onrender.com`
+
+Auth: `X-API-Key` header on all routes except `/register`, `/estimate`, and `/health`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/register` | Get an API key |
+| `POST` | `/route` | Route a prompt through the cascade |
+| `POST` | `/feedback` | Report result quality — trains the bandit |
+| `POST` | `/estimate` | Dry-run cost/tier prediction without executing |
+| `GET` | `/policy/:task_type` | Inspect the learned routing policy for a task type |
+| `GET` | `/savings` | Cumulative cost savings vs always-frontier baseline |
+| `GET` | `/health` | Health check |
+| `GET` | `/skill.md` | Full SkillMD for OpenClaw agents |
+
+Full request/response examples are in [`skill.md`](./skill.md).
+
+---
+
+## Quick start
+
 ```bash
+# 1. Register
+curl -X POST https://frugalroute-backend.onrender.com/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name": "my-agent"}'
+# → { "api_key": "fr_live_...", "daily_limit": 500 }
+
+# 2. Route a request
+curl -X POST https://frugalroute-backend.onrender.com/route \
+  -H "X-API-Key: fr_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"task_type": "classification", "prompt": "Classify sentiment: Great product!", "quality_bar": "standard"}'
+# → { "completion": "Positive.", "tier_used": "fast", "escalated": false, "confidence": 0.94, "cost_usd": 0.000005, "savings_vs_frontier": "95%" }
+
+# 3. Send feedback — this is what trains the router
+curl -X POST https://frugalroute-backend.onrender.com/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"request_id": "req_...", "accepted": true}'
+
+# 4. Check what you've saved
+curl https://frugalroute-backend.onrender.com/savings \
+  -H "X-API-Key: fr_live_..."
+# → { "total_requests": 120, "total_cost_usd": 0.41, "baseline_cost_usd": 8.90, "savings_pct": 95.4 }
+```
+
+---
+
+## Tech stack
+
+- **Runtime**: Node.js 20+ / TypeScript
+- **Framework**: Fastify
+- **Database**: PostgreSQL via Drizzle ORM (migrations run on startup)
+- **LLM API**: OpenRouter (OpenAI-compatible, one key for all tiers)
+- **Deployed on**: Render (web service + managed Postgres via `render.yaml`)
+
+---
+
+## Local setup
+
+```bash
+# 1. Install
 npm install
-```
 
-### 3. Configure Environment Variables
-Copy `.env.example` to `.env` and fill in the values:
-```bash
+# 2. Configure
 cp .env.example .env
-```
+# Fill in: DATABASE_URL, OPENROUTER_API_KEY
 
-Ensure your `.env` contains:
-```env
-PORT=3000
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/frugalroute
-OPENROUTER_API_KEY=your_openrouter_api_key
-```
-
-### 4. Database Setup
-Generate and apply migrations to your local Postgres database:
-```bash
-# Generate SQL migration files (already generated in src/db/migrations)
-npm run db:generate
-
-# Apply migrations programmatically on startup or via:
-npm run db:migrate
-```
-
-### 5. Run the Server
-Run the dev server (uses `tsx watch` for auto-reloading):
-```bash
+# 3. Run (migrations run automatically on startup)
 npm run dev
 ```
 
-The server will run on `http://localhost:3000`.
+Get a free OpenRouter API key at [openrouter.ai](https://openrouter.ai) — no credit card required.
 
 ---
 
-## Testing Endpoints
+## Deploy to Render
 
-You can test the entire workflow (register -> route -> feedback -> policy -> savings) using the provided `test.sh` script:
-```bash
-chmod +x test.sh
-./test.sh
-```
-
-Or on Windows PowerShell:
-```powershell
-.\test.ps1
-```
+1. Fork the repo
+2. Create a new **Blueprint** on [render.com](https://render.com) and connect this repo — `render.yaml` provisions the web service and Postgres automatically
+3. Add `OPENROUTER_API_KEY` in the Render environment dashboard
+4. Deploy — migrations run on first boot
 
 ---
 
-## API Documentation (Endpoint Contracts)
+## Why task_type labels matter
 
-Refer to [skill.md](file:///c:/Users/Admin/Desktop/FrugalRoute/skill.md) or access `GET /skill.md` at runtime to inspect the full API specifications.
-
----
-
-## Render Deployment
-
-To deploy this backend to Render:
-
-1. Create a new **Blueprint** service on Render and link it to this repository.
-2. Render will automatically parse the `render.yaml` file to provision:
-   - A **Managed PostgreSQL** database.
-   - A **Web Service** running Node.js.
-3. Configure the following environment variables in the Web Service dashboard on Render:
-   - `OPENROUTER_API_KEY`: Your OpenRouter API Key (free at openrouter.ai).
-4. Render will run `npm install && npm run build` to build, and `npm start` to run. The server runs migrations programmatically on startup.
+The bandit learns a separate policy per `task_type`. Reusing consistent labels (`classification`, `extraction`, `summarization`, `code_gen`, `multi_step_reasoning`) is what lets the router specialize — generic labels like `"general"` mix unrelated traffic and slow down learning.
